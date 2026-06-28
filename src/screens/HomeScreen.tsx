@@ -39,6 +39,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       ];
 
   const currentStreak = streak?.currentStreak ?? stats?.readingStreak ?? 0;
+  const todayMinutes = stats?.readingMinutesToday ?? 0;
+  const goalPercent = Math.min(Math.round((todayMinutes / 20) * 100), 100);
 
   return (
     <ScrollView
@@ -123,21 +125,21 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       <Card style={styles.goalCard}>
         <View style={styles.flexOne}>
           <Text style={styles.eyebrow}>TODAY'S GOAL</Text>
-          <Text>
-            <Text style={styles.goalNumber}>{currentStreak ? 15 : 0}</Text>
-            <Text style={styles.mutedText}> / 20 min</Text>
-          </Text>
+          <View style={styles.goalRow}>
+            <Text style={styles.goalNumber}>{todayMinutes}</Text>
+            <Text style={styles.mutedText}>/ 20 min</Text>
+          </View>
           <View style={styles.progressBarTrack}>
             <View
               style={[
                 styles.progressBarFill,
-                { width: currentStreak ? '75%' : '3%' },
+                { width: `${Math.max(goalPercent, 3)}%` },
               ]}
             />
           </View>
         </View>
         <View style={styles.awardCircle}>
-          <Award size={27} color={colors.amber} />
+          <Award size={27} color={colors.amber} fill={colors.amber} />
         </View>
       </Card>
 
@@ -372,6 +374,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 25,
     color: colors.pinkDark,
+  },
+  goalRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    marginVertical: 2,
   },
   progressBarTrack: {
     height: 9,

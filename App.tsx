@@ -6,7 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Book, BookOpen, Home, Layers, MoreHorizontal, Search, Sparkles } from 'lucide-react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { useFonts, Quicksand_400Regular, Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold } from '@expo-google-fonts/quicksand';
 import { AuthProvider } from './src/auth-context';
 
@@ -87,8 +87,11 @@ function Header() {
   const navigation = useNavigation<any>();
   return (
     <View style={styles.header}>
-      <View style={styles.logo}>
-        <Sparkles size={18} color={colors.white} />
+      <View style={[styles.logo, { backgroundColor: colors.pinkSoft }]}>
+        <Image
+          source={require('./assets/bunny_reading.png')}
+          style={{ width: 28, height: 28, resizeMode: 'contain' }}
+        />
       </View>
       <View>
         <Text style={styles.brand}>
