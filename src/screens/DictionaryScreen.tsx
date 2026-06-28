@@ -1,11 +1,22 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bookmark, ChevronRight } from 'lucide-react-native';
+import { Bookmark, ChevronRight, Search, Sparkles } from 'lucide-react-native';
 import { api, unwrap } from '../api';
 import { Button, Card, Empty, Loading, Pill, ScreenTitle, SearchBox } from '../components';
 import { colors, fonts } from '../theme';
 import { useAuth } from '../auth-context';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+
+const getMeaningVi = (item: any) =>
+  item?.meanings?.find((meaning: any) => meaning?.meaningVi?.trim())?.meaningVi?.trim()
+  || item?.meaningVi?.trim()
+  || '';
+
+const getMeaningEn = (item: any) =>
+  item?.meanings?.find((meaning: any) => meaning?.meaningEn?.trim())?.meaningEn?.trim()
+  || item?.meaningEn?.trim()
+  || '';
 
 const types = [
   ['', 'All'],
@@ -27,19 +38,22 @@ export function DictionaryScreen({ navigation }: DictionaryScreenProps) {
   const [level, setLevel] = useState('');
   const [topicId, setTopicId] = useState('');
   const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const isFuzzySearch = search.trim().length >= 2;
+  const isDebouncing = isFuzzySearch && debouncedSearch.trim() !== search.trim();
 
   const { data: topics } = useQuery({
     queryKey: ['topics'],
     queryFn: async () => unwrap<any[]>(await api.get('/topics')),
   });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['vocabularies', search, type, level, topicId, page],
+  const { data: listData, isLoading: listLoading } = useQuery({
+    queryKey: ['vocabularies', 'list', search, type, level, topicId, page],
     queryFn: async () =>
       unwrap<any>(
         await api.get('/vocabularies', {
           params: {
-            search: search || undefined,
+            search: search.trim().length < 2 ? search || undefined : undefined,
             type: type || undefined,
             level: level || undefined,
             topicId: topicId || undefined,
@@ -48,9 +62,33 @@ export function DictionaryScreen({ navigation }: DictionaryScreenProps) {
           },
         })
       ),
+    enabled: !isFuzzySearch,
   });
 
-  const items = data?.items || data || [];
+  const { data: fuzzyData, isLoading: fuzzyLoading } = useQuery({
+    queryKey: ['vocabularies', 'search', debouncedSearch, type, level, topicId],
+    queryFn: async () =>
+      unwrap<any>(
+        await api.get('/vocabularies/search', {
+          params: {
+            q: debouncedSearch.trim(),
+            type: type || undefined,
+            level: level || undefined,
+            topic: topicId || undefined,
+            limit: 20,
+          },
+        })
+      ),
+    enabled: debouncedSearch.trim().length >= 2,
+    staleTime: 30_000,
+  });
+
+  const items = isFuzzySearch ? fuzzyData?.results || [] : listData?.items || [];
+  const isLoading = isFuzzySearch ? fuzzyLoading || isDebouncing : listLoading;
+  const suggestions = fuzzyData?.suggestions || [];
+  const totalPages = listData?.pagination
+    ? Math.ceil(listData.pagination.total / 12)
+    : listData?.totalPages || 1;
 
   return (
     <ScrollView
@@ -143,13 +181,44 @@ export function DictionaryScreen({ navigation }: DictionaryScreenProps) {
         </>
       ) : null}
 
+      {isFuzzySearch && suggestions.length > 0 && !isLoading ? (
+        <View style={styles.suggestionBox}>
+          <Sparkles size={16} color={colors.amber} />
+          <View style={styles.suggestionContent}>
+            <Text style={styles.suggestionLabel}>Did you mean?</Text>
+            <View style={styles.suggestionList}>
+              {suggestions.map((suggestion: string) => (
+                <Pressable
+                  key={suggestion}
+                  onPress={() => {
+                    setSearch(suggestion);
+                    setPage(1);
+                  }}
+                >
+                  <Text style={styles.suggestionText}>{suggestion}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.resultHead}>
-        <Text style={styles.resultTitle}>
-          {data?.total ?? items.length} results
-        </Text>
-        <Text style={styles.muted}>
-          Page {data?.page || page} / {data?.totalPages || 1}
-        </Text>
+        {isFuzzySearch ? (
+          <View style={styles.searchStats}>
+            <Search size={14} color={colors.muted} />
+            <Text style={styles.muted}>
+              {fuzzyData?.meta?.exactCount || 0} exact · {fuzzyData?.meta?.prefixCount || 0} prefix · {fuzzyData?.meta?.fuzzyCount || 0} similar
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.resultTitle}>
+              {listData?.pagination?.total ?? listData?.total ?? items.length} results
+            </Text>
+            <Text style={styles.muted}>Page {page} / {totalPages}</Text>
+          </>
+        )}
       </View>
 
       {isLoading ? (
@@ -172,7 +241,7 @@ export function DictionaryScreen({ navigation }: DictionaryScreenProps) {
         />
       )}
 
-      {(data?.totalPages || 1) > 1 ? (
+      {!isFuzzySearch && totalPages > 1 ? (
         <View style={styles.pagination}>
           <Button
             title="‹ Previous"
@@ -183,7 +252,7 @@ export function DictionaryScreen({ navigation }: DictionaryScreenProps) {
           <Button
             title="Next ›"
             variant="blue"
-            disabled={page >= data.totalPages}
+            disabled={page >= totalPages}
             onPress={() => setPage((p) => p + 1)}
           />
         </View>
@@ -229,6 +298,8 @@ interface VocabCardProps {
 function VocabCard({ v, onPress, onLogin }: VocabCardProps) {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const meaningVi = getMeaningVi(v);
+  const meaningEn = getMeaningEn(v);
   
   const save = useMutation({
     mutationFn: () => api.post(`/vocabularies/${v.id || v._id}/save`),
@@ -252,14 +323,11 @@ function VocabCard({ v, onPress, onLogin }: VocabCardProps) {
             </Pill>
           ) : null}
         </View>
+        {v.matchType ? <MatchBadge matchType={v.matchType} /> : null}
         <Text style={styles.word}>{v.text}</Text>
         {v.phonetic ? <Text style={styles.phonetic}>{v.phonetic}</Text> : null}
-        <Text style={styles.meaning}>
-          {v.meanings?.[0]?.meaningVi || v.meaningVi || 'Chưa có nghĩa'}
-        </Text>
-        {v.meanings?.[0]?.meaningEn ? (
-          <Text style={styles.meaningEn}>{v.meanings[0].meaningEn}</Text>
-        ) : null}
+        {meaningVi ? <Text style={styles.meaning}>{meaningVi}</Text> : null}
+        {meaningEn ? <Text style={styles.meaningEn}>{meaningEn}</Text> : null}
         
         <View style={styles.cardFoot}>
           <Pressable
@@ -283,6 +351,21 @@ function VocabCard({ v, onPress, onLogin }: VocabCardProps) {
         </View>
       </Card>
     </Pressable>
+  );
+}
+
+function MatchBadge({ matchType }: { matchType: 'exact' | 'prefix' | 'fuzzy' }) {
+  const config = {
+    exact: { label: 'Exact', color: colors.green, background: '#ECFDF5' },
+    prefix: { label: 'Prefix', color: colors.blue, background: colors.blueSoft },
+    fuzzy: { label: 'Similar', color: colors.amber, background: '#FFF8E6' },
+  }[matchType];
+  return (
+    <View style={styles.matchBadge}>
+      <Pill color={config.color} background={config.background}>
+        {config.label}
+      </Pill>
+    </View>
   );
 }
 
@@ -321,6 +404,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 20,
   },
+  searchStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  suggestionBox: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: '#FFF8E6',
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 16,
+  },
+  suggestionContent: {
+    flex: 1,
+  },
+  suggestionLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 10,
+    color: colors.secondary,
+  },
+  suggestionList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  suggestionText: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: '#A16207',
+    textDecorationLine: 'underline',
+  },
   resultTitle: {
     fontFamily: fonts.bold,
     fontSize: 18,
@@ -341,6 +457,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  matchBadge: {
+    position: 'absolute',
+    right: 20,
+    top: 58,
+    zIndex: 1,
   },
   word: {
     fontFamily: fonts.bold,

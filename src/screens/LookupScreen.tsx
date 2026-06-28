@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, Bookmark, CheckCircle2, Layers, Search, Sparkles, Volume2 } from 'lucide-react-native';
@@ -7,6 +7,17 @@ import { api, unwrap } from '../api';
 import { useAuth } from '../auth-context';
 import { Button, Card, Empty, Loading, Pill, SearchBox } from '../components';
 import { colors, fonts } from '../theme';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+
+const getMeaningVi = (item: any) =>
+  item?.meanings?.find((meaning: any) => meaning?.meaningVi?.trim())?.meaningVi?.trim()
+  || item?.meaningVi?.trim()
+  || '';
+
+const getMeaningEn = (item: any) =>
+  item?.meanings?.find((meaning: any) => meaning?.meaningEn?.trim())?.meaningEn?.trim()
+  || item?.meaningEn?.trim()
+  || '';
 
 interface LookupScreenProps {
   navigation: any;
@@ -19,8 +30,11 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
   const [submitted, setSubmitted] = useState('');
   const [result, setResult] = useState<any>(null);
   const [similar, setSimilar] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [deckId, setDeckId] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 450);
+  const searchSequence = useRef(0);
 
   const { data: decks } = useQuery({
     queryKey: ['decks'],
@@ -28,36 +42,61 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
     enabled: !!user,
   });
 
-  const runSearch = async () => {
-    const word = query.trim();
+  const performSearch = useCallback(async (rawQuery: string) => {
+    const word = rawQuery.trim();
     if (!word) return;
-    
+
+    const sequence = ++searchSequence.current;
     setSubmitted(word);
     setLoading(true);
     setResult(null);
     setSimilar([]);
-    
+    setSuggestions([]);
+
     try {
-      const data = unwrap<any>(
-        await api.get('/vocabularies', {
-          params: { search: word, limit: 10 },
+      const searchData = unwrap<any>(
+        await api.get('/vocabularies/search', {
+          params: { q: word, limit: 10 },
         })
       );
-      const items = data?.items || [];
+      if (sequence !== searchSequence.current) return;
+
+      const items = searchData?.results || [];
       const exact = items.find(
-        (x: any) => x.text?.trim().toLowerCase() === word.toLowerCase()
+        (item: any) =>
+          item.matchType === 'exact'
+          || item.text?.trim().toLowerCase() === word.toLowerCase()
       );
+      setSuggestions(searchData?.suggestions || []);
       if (exact) {
         setResult(exact);
       } else {
         setSimilar(items);
       }
     } catch (e: any) {
-      Alert.alert('Search failed', e.userMessage);
+      if (sequence === searchSequence.current) {
+        Alert.alert('Search failed', e.userMessage);
+      }
     } finally {
-      setLoading(false);
+      if (sequence === searchSequence.current) setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const trimmed = debouncedQuery.trim();
+    if (!trimmed) {
+      searchSequence.current += 1;
+      setSubmitted('');
+      setResult(null);
+      setSimilar([]);
+      setSuggestions([]);
+      setLoading(false);
+      return;
+    }
+    performSearch(trimmed);
+  }, [debouncedQuery, performSearch]);
+
+  const runSearch = () => performSearch(query);
 
   const ai = useMutation({
     mutationFn: async () =>
@@ -141,28 +180,66 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
           {similar.length ? (
             <>
               <Text style={styles.section}>Similar results</Text>
-              {similar.map((v) => (
-                <Pressable key={v.id || v._id} onPress={() => setResult(v)}>
+              {similar.map((v) => {
+                const meaningVi = getMeaningVi(v);
+                return (
+                <Pressable
+                  key={v.id || v._id}
+                  onPress={() => {
+                    setQuery(v.text);
+                    setSubmitted(v.text);
+                    setResult(v);
+                    setSimilar([]);
+                    setSuggestions([]);
+                  }}
+                >
                   <Card style={styles.cardMargin}>
-                    <Text style={styles.wordSmall}>{v.text}</Text>
-                    <Text style={styles.meaning}>{v.meanings?.[0]?.meaningVi}</Text>
+                    <View style={styles.between}>
+                      <Text style={styles.wordSmall}>{v.text}</Text>
+                      <MatchBadge matchType={v.matchType} />
+                    </View>
+                    {meaningVi ? <Text style={styles.meaning}>{meaningVi}</Text> : null}
                   </Card>
                 </Pressable>
-              ))}
+                );
+              })}
             </>
           ) : (
-            <Empty
-              title={`“${submitted}” isn't in the dictionary`}
-              text="Let AI draft a definition for you."
-            />
+            <>
+              <Empty
+                title={`“${submitted}” isn't in the dictionary`}
+                text="Let AI draft a definition for you."
+              />
+              {suggestions.length ? (
+                <View style={styles.suggestionBox}>
+                  <Text style={styles.suggestionLabel}>DID YOU MEAN?</Text>
+                  <View style={styles.suggestionList}>
+                    {suggestions.map((suggestion) => (
+                      <Pressable
+                        key={suggestion}
+                        style={styles.suggestionChip}
+                        onPress={() => {
+                          setQuery(suggestion);
+                          performSearch(suggestion);
+                        }}
+                      >
+                        <Text style={styles.suggestionText}>{suggestion}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+            </>
           )}
-          
-          <Button
-            title={ai.isPending ? 'AI is defining...' : 'Define with AI'}
-            icon={<Sparkles size={17} color={colors.white} />}
-            disabled={ai.isPending}
-            onPress={() => ai.mutate()}
-          />
+
+          {!similar.length ? (
+            <Button
+              title={ai.isPending ? 'AI is defining...' : 'Define with AI'}
+              icon={<Sparkles size={17} color={colors.white} />}
+              disabled={ai.isPending}
+              onPress={() => ai.mutate()}
+            />
+          ) : null}
         </>
       ) : (
         <Card style={styles.welcome}>
@@ -189,6 +266,8 @@ function ResultCard({
   onOpen,
 }: any) {
   const m = v.meanings?.[0] || {};
+  const meaningVi = getMeaningVi(v);
+  const meaningEn = getMeaningEn(v);
   
   return (
     <Card>
@@ -217,15 +296,11 @@ function ResultCard({
         ) : null}
       </View>
 
-      <View style={styles.divider} />
+      {meaningVi || meaningEn ? <View style={styles.divider} /> : null}
 
-      <Text style={styles.meaningBig}>
-        {m.meaningVi || v.meaningVi || 'Chưa có nghĩa'}
-      </Text>
-      
-      {m.meaningEn || v.meaningEn ? (
-        <Text style={styles.meaningEn}>{m.meaningEn || v.meaningEn}</Text>
-      ) : null}
+      {meaningVi ? <Text style={styles.meaningBig}>{meaningVi}</Text> : null}
+
+      {meaningEn ? <Text style={styles.meaningEn}>{meaningEn}</Text> : null}
       
       {m.examples?.[0] || v.exampleEn ? (
         <View style={styles.example}>
@@ -319,6 +394,20 @@ function ResultCard({
   );
 }
 
+function MatchBadge({ matchType }: { matchType?: 'exact' | 'prefix' | 'fuzzy' }) {
+  if (!matchType) return null;
+  const config = {
+    exact: { label: 'Exact', color: colors.green, background: '#ECFDF5' },
+    prefix: { label: 'Prefix', color: colors.blue, background: colors.blueSoft },
+    fuzzy: { label: 'Similar', color: colors.amber, background: '#FFF8E6' },
+  }[matchType];
+  return (
+    <Pill color={config.color} background={config.background}>
+      {config.label}
+    </Pill>
+  );
+}
+
 const styles = StyleSheet.create({
   page: {
     padding: 18,
@@ -401,6 +490,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.secondary,
     marginTop: 4,
+  },
+  suggestionBox: {
+    backgroundColor: '#FFF8E6',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+  },
+  suggestionLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    color: colors.amber,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  suggestionList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  suggestionChip: {
+    backgroundColor: colors.white,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  suggestionText: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: '#A16207',
   },
   between: {
     flexDirection: 'row',
