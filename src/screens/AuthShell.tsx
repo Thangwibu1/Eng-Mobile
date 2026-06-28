@@ -20,7 +20,7 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
         <Sparkles size={28} color={colors.white} />
       </View>
       <Text style={styles.brand}>
-        Aura<Text style={{ color: colors.pink }}>English</Text>
+        <Text style={{ color: colors.pink }}>Hagu</Text>
       </Text>
       <Card style={styles.form}>
         <Text style={styles.authTitle}>{title}</Text>

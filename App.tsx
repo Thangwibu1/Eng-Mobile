@@ -94,9 +94,9 @@ function Header() {
         />
       </View>
       <View>
-        <Text style={styles.brand}>
-          Aura<Text style={{ color: colors.pink }}>English</Text>
-        </Text>
+          <Text style={styles.brand}>
+            <Text style={{ color: colors.pink }}>Hagu</Text>
+          </Text>
         <Text style={styles.tag}>SRS & READINGS</Text>
       </View>
       <Pressable style={styles.lookup} onPress={() => navigation.navigate('Lookup')}>

@@ -55,7 +55,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
       </Pressable>
       
       <View style={styles.switchContainer}>
-        <Text style={styles.muted}>New to AuraEnglish?</Text>
+        <Text style={styles.muted}>New to Hagu?</Text>
         <Pressable onPress={() => navigation.navigate('Register')}>
           <Text style={styles.link}> Create account</Text>
         </Pressable>
