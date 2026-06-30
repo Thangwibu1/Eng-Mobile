@@ -70,7 +70,7 @@ export function DeckDetailScreen({ route, navigation }: DeckDetailScreenProps) {
       ) : (
         <Empty
           title="No cards in this deck yet"
-          text="Save words from the Dictionary or a Reading."
+          text="Save words from Search or a Reading."
         />
       )}
     </ScrollView>

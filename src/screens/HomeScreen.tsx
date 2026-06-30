@@ -181,7 +181,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             </View>
             <Text style={styles.cardTitle}>Recent Words</Text>
           </View>
-          <Pressable onPress={() => navigation.navigate('Dictionary')}>
+          <Pressable onPress={() => navigation.navigate('Lookup')}>
             <Text style={styles.linkText}>View all</Text>
           </Pressable>
         </View>

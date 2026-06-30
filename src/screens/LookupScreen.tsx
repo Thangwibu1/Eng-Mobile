@@ -35,6 +35,7 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
   const [deckId, setDeckId] = useState('');
   const debouncedQuery = useDebouncedValue(query, 450);
   const searchSequence = useRef(0);
+  const skipNextDebouncedSearch = useRef(false);
 
   const { data: decks } = useQuery({
     queryKey: ['decks'],
@@ -62,17 +63,9 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
       if (sequence !== searchSequence.current) return;
 
       const items = searchData?.results || [];
-      const exact = items.find(
-        (item: any) =>
-          item.matchType === 'exact'
-          || item.text?.trim().toLowerCase() === word.toLowerCase()
-      );
       setSuggestions(searchData?.suggestions || []);
-      if (exact) {
-        setResult(exact);
-      } else {
-        setSimilar(items);
-      }
+      // Keep all matches in the list until the user explicitly selects one.
+      setSimilar(items);
     } catch (e: any) {
       if (sequence === searchSequence.current) {
         Alert.alert('Search failed', e.userMessage);
@@ -83,6 +76,11 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
   }, []);
 
   useEffect(() => {
+    if (skipNextDebouncedSearch.current) {
+      skipNextDebouncedSearch.current = false;
+      return;
+    }
+
     const trimmed = debouncedQuery.trim();
     if (!trimmed) {
       searchSequence.current += 1;
@@ -179,14 +177,17 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
         <>
           {similar.length ? (
             <>
-              <Text style={styles.section}>Similar results</Text>
+              <Text style={styles.section}>Search results</Text>
               {similar.map((v) => {
                 const meaningVi = getMeaningVi(v);
                 return (
                 <Pressable
                   key={v.id || v._id}
                   onPress={() => {
-                    setQuery(v.text);
+                    if (v.text !== query) {
+                      skipNextDebouncedSearch.current = true;
+                      setQuery(v.text);
+                    }
                     setSubmitted(v.text);
                     setResult(v);
                     setSimilar([]);
@@ -219,7 +220,10 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
                         key={suggestion}
                         style={styles.suggestionChip}
                         onPress={() => {
-                          setQuery(suggestion);
+                          if (suggestion !== query) {
+                            skipNextDebouncedSearch.current = true;
+                            setQuery(suggestion);
+                          }
                           performSearch(suggestion);
                         }}
                       >
@@ -246,8 +250,8 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
           <Text style={styles.emoji}>🔎</Text>
           <Text style={styles.welcomeTitle}>What would you like to learn?</Text>
           <Text style={styles.subtitle}>
-            Type a word above. Exact matches show meanings, examples, learning
-            actions, and deck tools.
+            Type a word above, then select a result to see meanings, examples,
+            learning actions, and deck tools.
           </Text>
         </Card>
       )}
@@ -385,7 +389,7 @@ function ResultCard({
       ) : null}
 
       <Button
-        title="View full dictionary entry"
+        title="View full details"
         variant="white"
         style={styles.openBtn}
         onPress={onOpen}

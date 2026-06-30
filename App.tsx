@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Book, BookOpen, Home, Layers, MoreHorizontal, Search, Sparkles } from 'lucide-react-native';
+import { BookOpen, Home, Layers, MoreHorizontal, Search } from 'lucide-react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
@@ -12,7 +12,6 @@ import { AuthProvider } from './src/auth-context';
 
 // Screen Imports
 import { HomeScreen } from './src/screens/HomeScreen';
-import { DictionaryScreen } from './src/screens/DictionaryScreen';
 import { VocabularyDetailScreen } from './src/screens/VocabularyDetailScreen';
 import { ReadingsScreen } from './src/screens/ReadingsScreen';
 import { ReadingDetailScreen } from './src/screens/ReadingDetailScreen';
@@ -65,7 +64,6 @@ function Tabs() {
           const icons: any = {
             Home,
             Readings: BookOpen,
-            Dictionary: Book,
             Flashcards: Layers,
             More: MoreHorizontal,
           };
@@ -76,7 +74,6 @@ function Tabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Readings" component={ReadingsScreen} />
-      <Tab.Screen name="Dictionary" component={DictionaryScreen} />
       <Tab.Screen name="Flashcards" component={FlashcardsScreen} />
       <Tab.Screen name="More" component={AccountScreen} />
     </Tab.Navigator>

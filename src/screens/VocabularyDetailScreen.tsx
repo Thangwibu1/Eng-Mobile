@@ -42,7 +42,7 @@ export function VocabularyDetailScreen({ route, navigation }: VocabularyDetailSc
     <ScrollView contentContainerStyle={styles.page}>
       <Pressable style={styles.back} onPress={() => navigation.goBack()}>
         <ArrowLeft size={18} color={colors.secondary} />
-        <Text style={styles.backText}>Back to Dictionary</Text>
+        <Text style={styles.backText}>Back</Text>
       </Pressable>
       
       <Card>
