@@ -36,6 +36,7 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
   const debouncedQuery = useDebouncedValue(query, 450);
   const searchSequence = useRef(0);
   const skipNextDebouncedSearch = useRef(false);
+  const selectedVocabularyId = useRef<string | null>(null);
 
   const { data: decks } = useQuery({
     queryKey: ['decks'],
@@ -48,6 +49,7 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
     if (!word) return;
 
     const sequence = ++searchSequence.current;
+    selectedVocabularyId.current = null;
     setSubmitted(word);
     setLoading(true);
     setResult(null);
@@ -183,7 +185,9 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
                 return (
                 <Pressable
                   key={v.id || v._id}
-                  onPress={() => {
+                  onPress={async () => {
+                    const vocabularyId = v.id || v._id;
+                    selectedVocabularyId.current = vocabularyId;
                     if (v.text !== query) {
                       skipNextDebouncedSearch.current = true;
                       setQuery(v.text);
@@ -192,6 +196,15 @@ export function LookupScreen({ navigation }: LookupScreenProps) {
                     setResult(v);
                     setSimilar([]);
                     setSuggestions([]);
+                    try {
+                      const detail = unwrap<any>(
+                        await api.get(`/vocabularies/${vocabularyId}`)
+                      );
+                      if (selectedVocabularyId.current !== vocabularyId) return;
+                      setResult(detail?.vocabulary || detail || v);
+                    } catch {
+                      // Keep the search result as a fallback.
+                    }
                   }}
                 >
                   <Card style={styles.cardMargin}>

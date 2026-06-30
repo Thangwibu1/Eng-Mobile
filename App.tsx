@@ -94,7 +94,7 @@ function Header() {
           <Text style={styles.brand}>
             <Text style={{ color: colors.pink }}>Hagu</Text>
           </Text>
-        <Text style={styles.tag}>SRS & READINGS</Text>
+        <Text style={styles.tag}>DICTIONARY & READINGS</Text>
       </View>
       <Pressable style={styles.lookup} onPress={() => navigation.navigate('Lookup')}>
         <Search size={16} color={colors.muted} />
