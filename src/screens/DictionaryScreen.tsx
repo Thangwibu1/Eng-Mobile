@@ -18,6 +18,18 @@ const getMeaningEn = (item: any) =>
   || item?.meaningEn?.trim()
   || '';
 
+const getSynonyms = (item: any): string[] => {
+  const fromMeanings = item?.meanings?.flatMap((m: any) => m?.synonyms || []) || [];
+  const direct = item?.synonyms || [];
+  return [...new Set([...fromMeanings, ...direct])].filter(Boolean).slice(0, 5) as string[];
+};
+
+const getAntonyms = (item: any): string[] => {
+  const fromMeanings = item?.meanings?.flatMap((m: any) => m?.antonyms || []) || [];
+  const direct = item?.antonyms || [];
+  return [...new Set([...fromMeanings, ...direct])].filter(Boolean).slice(0, 5) as string[];
+};
+
 const types = [
   ['', 'All'],
   ['single_word', 'Words'],
@@ -329,6 +341,32 @@ function VocabCard({ v, onPress, onLogin }: VocabCardProps) {
         {meaningVi ? <Text style={styles.meaning}>{meaningVi}</Text> : null}
         {meaningEn ? <Text style={styles.meaningEn}>{meaningEn}</Text> : null}
         
+        {getSynonyms(v).length > 0 && (
+          <View style={styles.synSection}>
+            <Text style={styles.synLabel}>SYNONYMS</Text>
+            <View style={styles.chipRow}>
+              {getSynonyms(v).map((word: string) => (
+                <View key={word} style={styles.synChip}>
+                  <Text style={styles.synChipText}>{word}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {getAntonyms(v).length > 0 && (
+          <View style={styles.synSection}>
+            <Text style={styles.synLabel}>ANTONYMS</Text>
+            <View style={styles.chipRow}>
+              {getAntonyms(v).map((word: string) => (
+                <View key={word} style={styles.antChip}>
+                  <Text style={styles.antChipText}>{word}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+        
         <View style={styles.cardFoot}>
           <Pressable
             onPress={(e) => {
@@ -519,5 +557,42 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: colors.blue,
     letterSpacing: 0.8,
+  },
+  synSection: {
+    marginTop: 10,
+  },
+  synLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    color: colors.secondary,
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+  },
+  synChip: {
+    backgroundColor: colors.blueSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  synChipText: {
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    color: colors.blue,
+  },
+  antChip: {
+    backgroundColor: '#FFF1F2',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  antChipText: {
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    color: '#F43F5E',
   },
 });
